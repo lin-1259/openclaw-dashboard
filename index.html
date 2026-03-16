@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>OpenClaw 看板</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;min-height:100vh}
+.header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header h1{font-size:15px;font-weight:700;color:#f0f6fc;display:flex;align-items:center;gap:8px}
+.pulse{width:9px;height:9px;border-radius:50%;flex-shrink:0;animation:pulse 2s infinite}
+.pulse.connected{background:#3fb950}.pulse.disconnected{background:#f85149}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
+.hright{font-size:11px;color:#8b949e}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px 16px}
+.stat{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px 8px;text-align:center;cursor:pointer;transition:border-color .2s}
+.stat:hover{border-color:#58a6ff}
+.stat.active-filter{border-color:#58a6ff;background:#1c2433}
+.stat .sv{font-size:22px;font-weight:700;line-height:1.2}
+.stat .sl{font-size:10px;color:#8b949e;margin-top:2px;text-transform:uppercase;letter-spacing:.4px}
+.stat.s-total .sv{color:#f0f6fc}
+.stat.s-active .sv{color:#3fb950}
+.stat.s-idle .sv{color:#58a6ff}
+.stat.s-dormant .sv{color:#8b949e}
+.tabs{display:flex;gap:0;padding:0 16px;border-bottom:1px solid #30363d;background:#161b22;position:sticky;top:45px;z-index:99}
+.tab{padding:10px 18px;font-size:13px;font-weight:500;color:#8b949e;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;display:flex;align-items:center;gap:6px}
+.tab:hover{color:#c9d1d9}
+.tab.active{color:#f0f6fc;border-bottom-color:#58a6ff}
+.tab-badge{background:#30363d;color:#c9d1d9;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600}
+.tab.active .tab-badge{background:#1f6feb;color:#fff}
+.panel{display:none;padding:12px 16px}
+.panel.active{display:block}
+.cards{display:flex;flex-direction:column;gap:8px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px;cursor:pointer;transition:border-color .2s}
+.card:hover{border-color:#58a6ff}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.card-name{font-size:14px;font-weight:600;color:#f0f6fc}
+.card-task{font-size:12px;color:#8b949e;margin:4px 0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.card-reply{font-size:12px;color:#7ee787;margin-top:4px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical}
+.card-meta{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.card-meta span{font-size:11px;color:#8b949e}
+.badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;flex-shrink:0}
+.badge-active{background:#0d4a1f;color:#3fb950}
+.badge-idle{background:#0d2a4a;color:#58a6ff}
+.badge-dormant{background:#21262d;color:#8b949e}
+.badge-aborted{background:#4a0d0d;color:#f85149}
+.proc-table{width:100%;border-collapse:collapse;font-size:12px}
+.proc-table th{text-align:left;padding:6px 8px;color:#8b949e;font-weight:600;border-bottom:1px solid #30363d;font-size:11px;text-transform:uppercase}
+.proc-table td{padding:6px 8px;border-bottom:1px solid #21262d;font-family:monospace}
+.proc-table tr:hover td{background:#161b22}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;padding:16px;align-items:flex-start;justify-content:center;overflow-y:auto}
+.modal-overlay.open{display:flex}
+.modal{background:#161b22;border:1px solid #30363d;border-radius:10px;width:100%;max-width:680px;margin:auto}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #30363d}
+.modal-title{font-size:14px;font-weight:600;color:#f0f6fc}
+.modal-close{background:none;border:none;color:#8b949e;font-size:18px;cursor:pointer;padding:0 4px}
+.expand-btn{font-size:11px;color:#58a6ff;cursor:pointer;margin-top:4px;display:inline-block}
+.msg.toolUse{background:#1a1f2e;border-left:3px solid #58a6ff;margin-left:8px}
+.msg.toolUse .msg-role{color:#58a6ff;font-size:11px}
+.msg.toolResult{background:#1a2e1a;border-left:3px solid #3fb950;margin-left:8px}
+.msg.toolResult .msg-role{color:#3fb950;font-size:11px}
+.msg.toolResult.err{background:#2e1a1a;border-left-color:#f85149}
+.msg.toolResult.err .msg-role{color:#f85149}
+.history{padding:12px;max-height:70vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.msg{padding:8px 12px;border-radius:6px;font-size:13px;line-height:1.5}
+.msg.user{background:#1c2433;border-left:3px solid #58a6ff}
+.msg.assistant{background:#0d1f12;border-left:3px solid #3fb950}
+.msg-role{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;color:#8b949e}
+.empty{color:#8b949e;font-size:13px;padding:16px 0;text-align:center}
+.cron-card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px;margin-bottom:8px}
+.cron-id{font-size:11px;color:#8b949e;font-family:monospace;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1><span class="pulse disconnected" id="pulse"></span>OpenClaw 看板</h1>
+  <span class="hright" id="lastUpdate">连接中...</span>
+</div>
+<div class="stats">
+  <div class="stat s-total" onclick="filterStatus('')" id="st-total"><div class="sv" id="sv-total">0</div><div class="sl">全部</div></div>
+  <div class="stat s-active" onclick="filterStatus('active')" id="st-active"><div class="sv" id="sv-active">0</div><div class="sl">活跃</div></div>
+  <div class="stat s-idle" onclick="filterStatus('idle')" id="st-idle"><div class="sv" id="sv-idle">0</div><div class="sl">空闲</div></div>
+  <div class="stat s-dormant" onclick="filterStatus('dormant')" id="st-dormant"><div class="sv" id="sv-dormant">0</div><div class="sl">休眠</div></div>
+</div>
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('sessions')" id="tab-sessions">会话 <span class="tab-badge" id="badge-sessions">0</span></div>
+  <div class="tab" onclick="switchTab('crons')" id="tab-crons">定时任务 <span class="tab-badge" id="badge-crons">0</span></div>
+  <div class="tab" onclick="switchTab('procs')" id="tab-procs">进程</div>
+  <div style="flex:1"></div>
+  <input id="search-box" placeholder="🔍 搜索会话..." oninput="renderSessions()" style="background:#21262d;border:1px solid #30363d;color:#c9d1d9;padding:4px 10px;border-radius:6px;font-size:12px;outline:none;width:160px;margin:6px 12px">
+</div>
+<div class="panel active" id="panel-sessions"><div class="cards" id="session-list"><div class="empty">加载中...</div></div></div>
+<div class="panel" id="panel-crons"><div id="cron-list"><div class="empty">加载中...</div></div></div>
+<div class="panel" id="panel-procs"><div style="padding:8px 12px;display:flex;gap:8px;align-items:center"><button onclick="renderProcs()" style="background:#21262d;border:1px solid #30363d;color:#c9d1d9;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px">🔄 刷新</button><label style="font-size:12px;color:#8b949e;cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" id="auto-refresh" onchange="toggleAutoRefresh(this.checked)"> 每10秒自动刷新</label></div><div id="proc-list"><div class="empty">加载中...</div></div></div>
+<div class="modal-overlay" id="modal" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">会话详情</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="history" id="modal-body"></div>
+  </div>
+</div>
+<script>
+let allData = null;
+let statusFilter = '';
+let currentTab = 'sessions';
+
+function ago(secs) {
+  if (secs < 60) return secs + '秒前';
+  if (secs < 3600) return Math.floor(secs/60) + '分钟前';
+  if (secs < 86400) return Math.floor(secs/3600) + '小时前';
+  return Math.floor(secs/86400) + '天前';
+}
+
+function badgeHtml(status) {
+  const map = {active:'活跃',idle:'空闲',dormant:'休眠',aborted:'中断'};
+  return '<span class="badge badge-'+status+'">'+(map[status]||status)+'</span>';
+}
+
+function filterStatus(s) {
+  statusFilter = statusFilter === s ? '' : s;
+  document.querySelectorAll('.stat').forEach(el => el.classList.remove('active-filter'));
+  if (statusFilter) {
+    const m = {active:'st-active',idle:'st-idle',dormant:'st-dormant'};
+    if (m[statusFilter]) document.getElementById(m[statusFilter]).classList.add('active-filter');
+  }
+  renderSessions();
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.getElementById('panel-'+tab).classList.add('active');
+  if (tab === 'procs') renderProcs();
+  else {
+    if (logPollTimer) { clearInterval(logPollTimer); logPollTimer = null; }
+    if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; const cb = document.getElementById('auto-refresh'); if(cb) cb.checked = false; }
+  }
+}
+
+function renderSessions() {
+  if (!allData) return;
+  const sessions = allData.sessions.filter(s => !s.key.includes(':cron:'));
+  const q = (document.getElementById('search-box')?.value || '').toLowerCase();
+  const filtered = sessions.filter(s => {
+    if (statusFilter && s.status !== statusFilter) return false;
+    if (q && !s.channelName.toLowerCase().includes(q) && !s.taskDesc.toLowerCase().includes(q) && !s.lastAssistantMsg.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const el = document.getElementById('session-list');
+  if (!filtered.length) { el.innerHTML = '<div class="empty">暂无会话</div>'; return; }
+  el.innerHTML = filtered.map(s => `
+    <div class="card" onclick="openSession('${s.key}','${s.sessionId}')">
+      <div class="card-header">
+        <span class="card-name">${s.channelName}</span>
+        ${badgeHtml(s.status)}
+      </div>
+      <div class="card-task">${s.taskDesc || '（无内容）'}</div>
+      ${s.lastAssistantMsg ? '<div class="card-reply">↳ '+s.lastAssistantMsg+'</div>' : ''}
+      ${s.contextTokens ? ctxBar(s.contextTokens) : ''}
+      <div class="card-meta">
+        <span>💬 ${s.msgCount} 条</span>
+        <span>🕐 ${ago(s.updatedAgo)}</span>
+        ${s.model ? '<span>🤖 '+s.model.split('/').pop().substring(0,30)+'</span>' : ''}
+      </div>
+    </div>`).join('');
+}
+
+function renderCrons() {
+  if (!allData) return;
+  const crons = allData.sessions.filter(s => s.key.includes(':cron:') && !s.key.includes(':run:'));
+  const el = document.getElementById('cron-list');
+  document.getElementById('badge-crons').textContent = crons.length;
+  if (!crons.length) { el.innerHTML = '<div class="empty">暂无定时任务</div>'; return; }
+  // 找到每个 cron 对应的 run session
+  const runs = allData.sessions.filter(s => s.key.includes(':run:'));
+  el.innerHTML = crons.map(s => {
+    const cronId = s.key.split(':cron:')[1];
+    const run = runs.find(r => r.key.includes(cronId));
+    const displayId = cronId ? cronId.substring(0,8) + '...' : s.sessionId.substring(0,8);
+    const clickSid = run ? run.sessionId : s.sessionId;
+    return `
+    <div class="cron-card" style="cursor:pointer" onclick="openSession('${s.key}','${clickSid}')">
+      <div class="card-header">
+        <span class="card-name">⏱ ${displayId}</span>
+        ${badgeHtml(s.status)}
+      </div>
+      <div class="cron-id">${s.key.replace('agent:main:','')}</div>
+      <div class="card-meta" style="margin-top:6px">
+        <span>🕐 ${ago(s.updatedAgo)}</span>
+        ${run ? '<span>📋 有运行记录</span>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function renderProcs() {
+  const el = document.getElementById('proc-list');
+  el.innerHTML = '<div class="empty">加载中...</div>';
+  try {
+    const [procRes, taskRes] = await Promise.all([
+      fetch('/api/data').then(r=>r.json()),
+      fetch('/api/procs').then(r=>r.json())
+    ]);
+    const sysprocs = (procRes.processes||[]).slice(0,8);
+    const tasks = taskRes.tasks||[];
+    const logs = taskRes.logs||[];
+    let html = '';
+    // 正在运行的任务进程
+    if (tasks.length) {
+      html += '<div style="font-size:11px;color:#8b949e;padding:8px 12px 4px;text-transform:uppercase;letter-spacing:.5px">任务进程</div>';
+      html += tasks.map(t => {
+        const logBtn = t.logFile ? `<span style="color:#58a6ff;cursor:pointer;margin-left:8px" onclick="openLog('${t.logFile}')">📋 查看日志</span>` : '';
+        const alive = t.alive ? '<span style="color:#3fb950">● 运行中</span>' : '<span style="color:#8b949e">● 已结束</span>';
+        return `<div class="card" style="margin:4px 12px;padding:10px 12px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-family:monospace;color:#e6edf3">${escHtml(t.cmd)}</span>
+            ${alive}
+          </div>
+          <div style="font-size:11px;color:#8b949e;margin-top:4px">
+            ${t.pid?'PID: '+t.pid:''}${t.runtime?' · 运行时间: '+t.runtime:''}${logBtn}
+          </div>
+          ${t.tail&&t.tail.length?`<div style="font-size:11px;font-family:monospace;color:#8b949e;margin-top:6px;padding:6px;background:#0d1117;border-radius:4px;max-height:60px;overflow:hidden">${escHtml(t.tail.slice(-3).join('\n'))}</div>`:''}
+        </div>`;
+      }).join('');
+    }
+    // 最近日志文件
+    if (logs.length) {
+      html += '<div style="font-size:11px;color:#8b949e;padding:8px 12px 4px;text-transform:uppercase;letter-spacing:.5px">最近日志</div>';
+      html += logs.map(l => {
+        const ago = Math.round((Date.now()-l.mtime)/60000);
+        return `<div class="card" style="margin:4px 12px;padding:8px 12px;cursor:pointer" onclick="openLog('${l.file}')">
+          <div style="display:flex;justify-content:space-between">
+            <span style="font-size:12px;font-family:monospace">${escHtml(l.name)}</span>
+            <span style="font-size:11px;color:#8b949e">${ago}分钟前</span>
+          </div>
+          ${l.tail&&l.tail.length?`<div style="font-size:11px;font-family:monospace;color:#8b949e;margin-top:4px;white-space:pre-wrap">${escHtml(l.tail.slice(-2).join('\n'))}</div>`:''}
+        </div>`;
+      }).join('');
+    }
+    // 系统进程
+    if (sysprocs.length) {
+      html += '<div style="font-size:11px;color:#8b949e;padding:8px 12px 4px;text-transform:uppercase;letter-spacing:.5px">系统进程</div>';
+      html += '<table class="proc-table" style="margin:0 12px;width:calc(100% - 24px)"><thead><tr><th>PID</th><th>CPU%</th><th>MEM%</th><th>命令</th></tr></thead><tbody>'
+        + sysprocs.map(p => `<tr><td>${p.pid}</td><td>${p.cpu}</td><td>${p.mem}</td><td>${escHtml(p.cmd)}</td></tr>`).join('')
+        + '</tbody></table>';
+    }
+    if (!html) html = '<div class="empty">暂无进程数据</div>';
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<div class="empty">加载失败: '+e.message+'</div>'; }
+}
+
+let logPollTimer = null;
+async function fetchLog(file) {
+  try {
+    const r = await fetch('/api/log?file='+encodeURIComponent(file)+'&lines=300');
+    const d = await r.json();
+    const lines = d.lines||[];
+    const body = document.getElementById('modal-body');
+    if (!body) return;
+    if (!lines.length) { body.innerHTML = '<div class="empty">日志为空</div>'; return; }
+    const content = lines.map(l => {
+      const el = escHtml(l);
+      if (/error|exception|traceback|failed|fatal/i.test(l)) return `<span style="color:#f85149">${el}</span>`;
+      if (/warning|warn/i.test(l)) return `<span style="color:#d29922">${el}</span>`;
+      if (/success|done|complete|finished|\bok\b/i.test(l)) return `<span style="color:#3fb950">${el}</span>`;
+      if (/^\d{4}-\d{2}-\d{2}|^\[/.test(l)) return `<span style="color:#8b949e">${el}</span>`;
+      return el;
+    }).join('\n');
+    const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
+    body.innerHTML = `<div style="font-family:monospace;font-size:12px;white-space:pre-wrap;line-height:1.5;padding:4px">${content}</div>`;
+    if (atBottom) body.scrollTop = 999999;
+  } catch(e) {}
+}
+async function openLog(file) {
+  if (logPollTimer) { clearInterval(logPollTimer); logPollTimer = null; }
+  document.getElementById('modal-title').textContent = '📋 ' + file.split('/').pop() + ' (实时)';
+  document.getElementById('modal-body').innerHTML = '<div class="empty">加载中...</div>';
+  document.getElementById('modal').classList.add('open');
+  await fetchLog(file);
+  document.getElementById('modal-body').scrollTop = 999999;
+  logPollTimer = setInterval(() => fetchLog(file), 2000);
+}
+
+function renderStats() {
+  if (!allData) return;
+  const sessions = allData.sessions.filter(s => !s.key.includes(':cron:'));
+  document.getElementById('sv-total').textContent = sessions.length;
+  document.getElementById('sv-active').textContent = sessions.filter(s=>s.status==='active').length;
+  document.getElementById('sv-idle').textContent = sessions.filter(s=>s.status==='idle').length;
+  document.getElementById('sv-dormant').textContent = sessions.filter(s=>s.status==='dormant').length;
+  document.getElementById('badge-sessions').textContent = sessions.length;
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('zh-CN');
+}
+
+function render(data) {
+  allData = data;
+  renderStats();
+  renderSessions();
+  renderCrons();
+  // procs tab 不在全局 render 里刷新，避免闪动
+}
+
+let currentSessionSid = null;
+let currentSessionOffset = 0;
+
+function renderMsgs(history) {
+  return history.map(m => {
+      const content = m.content || '';
+      const escaped = escHtml(content).replace(/\n/g,'<br>');
+      const isLong = content.length > 600;
+      const uid = 'msg_' + Math.random().toString(36).slice(2);
+      const bodyInner = isLong
+        ? `<div id="${uid}" style="max-height:150px;overflow:hidden;font-family:monospace;font-size:12px;white-space:pre-wrap">${escaped}</div><span class="expand-btn" onclick="toggleExpand('${uid}',this)">展开 ▼</span>`
+        : `<div style="font-family:monospace;font-size:12px;white-space:pre-wrap">${escaped}</div>`;
+      if (m.role === 'toolUse') {
+        return `<div class="msg toolUse"><div class="msg-role">🔧 ${escHtml(m.toolName||'tool')}</div>${bodyInner}</div>`;
+      } else if (m.role === 'toolResult') {
+        const ec = m.exitCode !== undefined ? ` exit:${m.exitCode}` : '';
+        const dur = m.durationMs ? ` ${m.durationMs}ms` : '';
+        const ok = m.exitCode === 0 ? '✅' : m.exitCode !== undefined ? '❌' : '📤';
+        return `<div class="msg toolResult"><div class="msg-role">${ok} ${escHtml(m.toolName||'result')}${ec}${dur}</div>${bodyInner}</div>`;
+      } else {
+        const roleLabel = m.role === 'user' ? '👤 用户' : '🤖 助手';
+        // 普通消息用正常字体和换行
+        const normalContent = content.length > 600
+          ? `<div id="${uid}2" style="max-height:200px;overflow:hidden;white-space:pre-wrap;line-height:1.6;font-size:13px">${escaped}</div><span class="expand-btn" onclick="toggleExpand('${uid}2',this)">展开 ▼</span>`
+          : `<div style="white-space:pre-wrap;line-height:1.6;font-size:13px">${escaped}</div>`;
+        return `<div class="msg ${m.role}"><div class="msg-role">${roleLabel}</div>${normalContent}</div>`;
+      }
+    }).join('');
+}
+
+async function openSession(key, sid) {
+  if (logPollTimer) { clearInterval(logPollTimer); logPollTimer = null; }
+  currentSessionSid = sid || key;
+  currentSessionOffset = 0;
+  document.getElementById('modal-title').textContent = key.split(':').pop();
+  const body = document.getElementById('modal-body');
+  body.innerHTML = '<div class="empty">加载中...</div>';
+  document.getElementById('modal').classList.add('open');
+  await loadSessionPage(currentSessionSid, 0, true);
+}
+
+async function loadSessionPage(sid, offset, initial) {
+  const body = document.getElementById('modal-body');
+  try {
+    const r = await fetch(`/api/session?id=${encodeURIComponent(sid)}&limit=80&offset=${offset}`);
+    const d = await r.json();
+    const history = d.history || [];
+    const total = d.total || 0;
+    if (!history.length && initial) { body.innerHTML = '<div class="empty">暂无历史记录</div>'; return; }
+    const html = renderMsgs(history);
+    if (initial) {
+      const loadMoreBtn = total > 80 ? `<div id="load-more-btn" style="text-align:center;padding:8px"><button onclick="loadMore('${sid}')" style="background:#21262d;border:1px solid #30363d;color:#58a6ff;padding:4px 16px;border-radius:6px;cursor:pointer;font-size:12px">⬆ 加载更早的记录 (共${total}条)</button></div>` : '';
+      body.innerHTML = loadMoreBtn + html;
+      body.scrollTop = body.scrollHeight;
+    } else {
+      const btn = document.getElementById('load-more-btn');
+      const newHtml = renderMsgs(history);
+      if (btn) {
+        const newOffset = offset + history.length;
+        if (newOffset >= total) btn.remove();
+        else btn.querySelector('button').onclick = () => loadMore(sid);
+        btn.insertAdjacentHTML('afterend', newHtml);
+      }
+    }
+  } catch(e) { if(initial) body.innerHTML = '<div class="empty">加载失败: '+e.message+'</div>'; }
+}
+
+async function loadMore(sid) {
+  currentSessionOffset += 80;
+  const btn = document.getElementById('load-more-btn');
+  if (btn) btn.querySelector('button').textContent = '加载中...';
+  await loadSessionPage(sid, currentSessionOffset, false);
+}
+
+let autoRefreshTimer = null;
+function toggleAutoRefresh(on) {
+  if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+  if (on) autoRefreshTimer = setInterval(() => { if (currentTab==='procs') renderProcs(); }, 10000);
+}
+function ctxBar(tokens) {
+  const limit = 200000;
+  const pct = Math.min(100, Math.round(tokens / limit * 100));
+  const color = pct > 80 ? '#f85149' : pct > 50 ? '#d29922' : '#3fb950';
+  const fmt = tokens >= 1000 ? (tokens/1000).toFixed(1)+'k' : tokens;
+  return `<div style="margin:4px 0 2px;">`+
+    `<div style="display:flex;justify-content:space-between;font-size:10px;color:#8b949e;margin-bottom:2px"><span>上下文</span><span style="color:${color}">${fmt} / 200k (${pct}%)</span></div>`+
+    `<div style="background:#21262d;border-radius:3px;height:4px;overflow:hidden">`+
+    `<div style="width:${pct}%;height:100%;background:${color};border-radius:3px;transition:width .3s"></div>`+
+    `</div></div>`;
+}
+function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toggleExpand(id, btn) {
+  const el = document.getElementById(id);
+  if (el.style.maxHeight === 'none') {
+    el.style.maxHeight = '120px'; el.style.overflow = 'hidden'; btn.textContent = '展开 ▼';
+  } else {
+    el.style.maxHeight = 'none'; el.style.overflow = 'visible'; btn.textContent = '收起 ▲';
+  }
+}
+
+function closeModal(e) {
+  if (!e || e.target.classList.contains('modal-overlay')) {
+    document.getElementById('modal').classList.remove('open');
+    if (logPollTimer) { clearInterval(logPollTimer); logPollTimer = null; }
+  }
+}
+
+// WebSocket连接
+function connect() {
+  const ws = new WebSocket('ws://' + location.host + '/ws');
+  const pulse = document.getElementById('pulse');
+  ws.onopen = () => { pulse.className = 'pulse connected'; fetch('/api/data').then(r=>r.json()).then(render); };
+  ws.onmessage = e => { try { const d = JSON.parse(e.data); if (d.type==='update') render(d.data); } catch(ex){} };
+  ws.onclose = () => { pulse.className = 'pulse disconnected'; setTimeout(connect, 3000); };
+  ws.onerror = () => ws.close();
+}
+connect();
+</script>
+</body>
+</html>
