@@ -153,21 +153,24 @@ function renderSessions() {
   });
   const el = document.getElementById('session-list');
   if (!filtered.length) { el.innerHTML = '<div class="empty">暂无会话</div>'; return; }
-  el.innerHTML = filtered.map(s => `
-    <div class="card" onclick="openSession('${s.key}','${s.sessionId}')">
+  el.innerHTML = filtered.map(s => {
+    const key = escHtml(s.key).replace(/'/g,'&#39;');
+    const sid = escHtml(s.sessionId).replace(/'/g,'&#39;');
+    return `<div class="card" onclick="openSession('${key}','${sid}')">
       <div class="card-header">
-        <span class="card-name">${s.channelName}</span>
+        <span class="card-name">${escHtml(s.channelName)}</span>
         ${badgeHtml(s.status)}
       </div>
-      <div class="card-task">${s.taskDesc || '（无内容）'}</div>
-      ${s.lastAssistantMsg ? '<div class="card-reply">↳ '+s.lastAssistantMsg+'</div>' : ''}
+      <div class="card-task">${escHtml(s.taskDesc || '（无内容）')}</div>
+      ${s.lastAssistantMsg ? '<div class="card-reply">↳ '+escHtml(s.lastAssistantMsg)+'</div>' : ''}
       ${s.contextTokens ? ctxBar(s.contextTokens) : ''}
       <div class="card-meta">
         <span>💬 ${s.msgCount} 条</span>
         <span>🕐 ${ago(s.updatedAgo)}</span>
-        ${s.model ? '<span>🤖 '+s.model.split('/').pop().substring(0,30)+'</span>' : ''}
+        ${s.model ? '<span>🤖 '+escHtml(s.model.split('/').pop().substring(0,30))+'</span>' : ''}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function renderCrons() {
