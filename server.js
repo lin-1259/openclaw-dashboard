@@ -249,6 +249,11 @@ setInterval(() => {
   if (wsClients.size > 0) broadcast(buildData());
 }, 30000);
 
+// Clear session cache every hour to prevent memory leak
+setInterval(() => {
+  sessionCache.clear();
+}, 60 * 60 * 1000);
+
 // Context alert check every 5 minutes
 setInterval(() => {
   checkContextAlerts(buildData().sessions);
@@ -424,8 +429,8 @@ const server = http.createServer((req, res) => {
     if (!sessionCache.has(cacheKey)) {
       const detail = getSessionDetail(sessionFile, true);
       sessionCache.set(cacheKey, detail);
-      // evict old entries
-      if (sessionCache.size > 10) sessionCache.delete(sessionCache.keys().next().value);
+      // evict old entries (keep max 5)
+      if (sessionCache.size > 5) sessionCache.delete(sessionCache.keys().next().value);
     }
     const full = sessionCache.get(cacheKey);
     const history = full.history || [];
