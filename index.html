@@ -163,7 +163,7 @@ function renderSessions() {
       </div>
       <div class="card-task">${escHtml(s.taskDesc || '（无内容）')}</div>
       ${s.lastAssistantMsg ? '<div class="card-reply">↳ '+escHtml(s.lastAssistantMsg)+'</div>' : ''}
-      ${s.contextTokens ? ctxBar(s.contextTokens) : ''}
+      ${s.contextTokens ? ctxBar(s.contextTokens, s.contextLimit) : ''}
       <div class="card-meta">
         <span>💬 ${s.msgCount} 条</span>
         <span>🕐 ${ago(s.updatedAgo)}</span>
@@ -387,8 +387,8 @@ function toggleAutoRefresh(on) {
   if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
   if (on) autoRefreshTimer = setInterval(() => { if (currentTab==='procs') renderProcs(); }, 10000);
 }
-function ctxBar(tokens) {
-  const limit = 200000;
+function ctxBar(tokens, limit) {
+  limit = limit || 200000;
   const pct = Math.min(100, Math.round(tokens / limit * 100));
   const color = pct > 80 ? '#f85149' : pct > 50 ? '#d29922' : '#3fb950';
   const fmt = tokens >= 1000 ? (tokens/1000).toFixed(1)+'k' : tokens;

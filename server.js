@@ -187,7 +187,8 @@ function buildData() {
       lastUserMsg: detail.lastUserMsg,
       lastAssistantMsg: detail.lastAssistantMsg,
       msgCount: detail.msgCount, model: detail.model,
-      contextTokens: detail.lastContextTokens, outputTokens: detail.lastOutputTokens
+      contextTokens: detail.lastContextTokens, outputTokens: detail.lastOutputTokens,
+      contextLimit: getContextLimit(detail.model)
     });
   }
   result.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
@@ -204,7 +205,27 @@ function broadcast(data) {
 
 // Context warning config
 const ALERT_CHANNEL = '1482226015311888524';
-const CONTEXT_LIMIT = 200000;
+const CONTEXT_LIMIT = 200000; // default
+const MODEL_CONTEXT_LIMITS = {
+  'claude': 200000,
+  'gpt-4': 128000,
+  'gpt-4o': 128000,
+  'gpt-5': 1000000,
+  'gpt-5.2': 1000000,
+  'gpt-5.4': 1000000,
+  'o1': 200000,
+  'o3': 200000,
+  'gemini-2': 1000000,
+  'gemini-1.5': 1000000,
+};
+function getContextLimit(model) {
+  if (!model) return CONTEXT_LIMIT;
+  const m = model.toLowerCase();
+  for (const [key, limit] of Object.entries(MODEL_CONTEXT_LIMITS)) {
+    if (m.includes(key)) return limit;
+  }
+  return CONTEXT_LIMIT;
+}
 const ALERT_THRESHOLD = 0.8;
 const ALERT_COOLDOWN = 30 * 60 * 1000; // 30 min
 const alertedSessions = new Map(); // sessionId -> last alert ts
