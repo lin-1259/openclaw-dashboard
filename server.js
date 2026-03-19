@@ -252,14 +252,16 @@ function checkContextAlerts(sessions) {
   const now = Date.now();
   for (const s of sessions) {
     if (!s.contextTokens || !s.sessionId) continue;
-    const pct = s.contextTokens / CONTEXT_LIMIT;
+    const limit = getContextLimit(s.model);
+    const pct = s.contextTokens / limit;
     if (pct < ALERT_THRESHOLD) continue;
     const lastAlert = alertedSessions.get(s.sessionId) || 0;
     if (now - lastAlert < ALERT_COOLDOWN) continue;
     alertedSessions.set(s.sessionId, now);
     const pctStr = Math.round(pct * 100);
     const fmt = s.contextTokens >= 1000 ? (s.contextTokens/1000).toFixed(1)+'k' : s.contextTokens;
-    const msg = `⚠️ **上下文警告** ${s.channelName}\n已用 **${fmt} / 200k tokens (${pctStr}%)**，建议尽快 /reset 重置上下文。`;
+    const limitFmt = limit >= 1000 ? (limit/1000).toFixed(0)+'k' : limit;
+    const msg = `⚠️ **上下文警告** ${s.channelName}\n已用 **${fmt} / ${limitFmt} tokens (${pctStr}%)**，建议尽快 /reset 重置上下文。`;
     sendDiscordAlert(ALERT_CHANNEL, msg);
     console.log(`[alert] ${s.channelName} context ${pctStr}%`);
   }
