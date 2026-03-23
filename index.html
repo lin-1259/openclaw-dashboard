@@ -168,6 +168,7 @@ function renderSessions() {
         <span>💬 ${s.msgCount} 条</span>
         <span>🕐 ${ago(s.updatedAgo)}</span>
         ${s.model ? '<span>🤖 '+escHtml(s.model.split('/').pop().substring(0,30))+'</span>' : ''}
+        ${s.status==='active'||s.status==='idle' ? `<span onclick="event.stopPropagation();abortSession('${key}')" style="color:#f85149;cursor:pointer;margin-left:auto">⏹ 中止</span>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -218,6 +219,7 @@ async function renderProcs() {
       html += '<div style="font-size:11px;color:#8b949e;padding:8px 12px 4px;text-transform:uppercase;letter-spacing:.5px">任务进程</div>';
       html += tasks.map(t => {
         const logBtn = t.logFile ? `<span style="color:#58a6ff;cursor:pointer;margin-left:8px" onclick="openLog('${t.logFile}')">📋 查看日志</span>` : '';
+        const killBtn = t.alive && t.pid ? `<span style="color:#f85149;cursor:pointer;margin-left:8px" onclick="killProc('${t.pid}','${escHtml(t.cmd||'')}')">⏹ 终止</span>` : '';
         const alive = t.alive ? '<span style="color:#3fb950">● 运行中</span>' : '<span style="color:#8b949e">● 已结束</span>';
         return `<div class="card" style="margin:4px 12px;padding:10px 12px">
           <div style="display:flex;justify-content:space-between;align-items:center">
@@ -225,7 +227,7 @@ async function renderProcs() {
             ${alive}
           </div>
           <div style="font-size:11px;color:#8b949e;margin-top:4px">
-            ${t.pid?'PID: '+t.pid:''}${t.runtime?' · 运行时间: '+t.runtime:''}${logBtn}
+            ${t.pid?'PID: '+t.pid:''}${t.runtime?' · 运行时间: '+t.runtime:''}${logBtn}${killBtn}
           </div>
           ${t.tail&&t.tail.length?`<div style="font-size:11px;font-family:monospace;color:#8b949e;margin-top:6px;padding:6px;background:#0d1117;border-radius:4px;max-height:60px;overflow:hidden">${escHtml(t.tail.slice(-3).join('\n'))}</div>`:''}
         </div>`;
@@ -397,6 +399,20 @@ function ctxBar(tokens, limit) {
     `<div style="background:#21262d;border-radius:3px;height:4px;overflow:hidden">`+
     `<div style="width:${pct}%;height:100%;background:${color};border-radius:3px;transition:width .3s"></div>`+
     `</div></div>`;
+}
+async function abortSession(key) {
+  if (!confirm('确定中止会话 ' + key.split(':').pop() + '？')) return;
+  const r = await fetch('/api/session/abort', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key})});
+  const d = await r.json();
+  if (d.ok) alert('已发送中止信号');
+  else alert('中止失败');
+}
+async function killProc(pid, cmd) {
+  if (!confirm('确定终止进程 ' + pid + ' (' + cmd.substring(0,30) + ')？')) return;
+  const r = await fetch('/api/proc/kill', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pid})});
+  const d = await r.json();
+  if (d.ok) { alert('已发送 SIGTERM'); renderProcs(); }
+  else alert('终止失败: ' + (d.error||''));
 }
 function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function toggleExpand(id, btn) {

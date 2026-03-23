@@ -426,6 +426,38 @@ const server = http.createServer((req, res) => {
     const taskPids = new Set(tasks.map(t => t.logFile).filter(Boolean));
     const standaloneLogs = logs.filter(l => !tasks.some(t => t.logFile === l.file));
     res.end(JSON.stringify({ tasks, logs: standaloneLogs }));
+  } else if (url === '/api/session/abort' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const { key } = JSON.parse(body);
+        const sessions = getSessions();
+        if (sessions[key]) {
+          sessions[key].abortedLastRun = true;
+          fs.writeFileSync(SESSIONS_JSON, JSON.stringify(sessions, null, 2));
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ ok: true }));
+        } else {
+          res.writeHead(404); res.end('{"ok":false,"error":"not found"}');
+        }
+      } catch(e) { res.writeHead(500); res.end('{"ok":false}'); }
+    });
+  } else if (url === '/api/proc/kill' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const { pid } = JSON.parse(body);
+        if (pid && /^\d+$/.test(String(pid))) {
+          process.kill(parseInt(pid), 'SIGTERM');
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ ok: true }));
+        } else {
+          res.writeHead(400); res.end('{"ok":false,"error":"invalid pid"}');
+        }
+      } catch(e) { res.writeHead(500); res.end('{"ok":false,"error":"'+e.message+'"}'); }
+    });
   } else if (url === '/api/procs') {
     const tasks = getTaskProcesses();
     const logs = getRecentLogs();
