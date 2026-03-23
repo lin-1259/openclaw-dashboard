@@ -267,10 +267,10 @@ function checkContextAlerts(sessions) {
   }
 }
 
-// Broadcast to WS clients every 30s
+// Broadcast to WS clients every 10s
 setInterval(() => {
   if (wsClients.size > 0) broadcast(buildData());
-}, 30000);
+}, 10000);
 
 // Clear session cache every hour to prevent memory leak
 setInterval(() => {
