@@ -227,7 +227,7 @@ function getContextLimit(model) {
   return CONTEXT_LIMIT;
 }
 const ALERT_THRESHOLD = 0.8;
-const ALERT_COOLDOWN = 30 * 60 * 1000; // 30 min
+const ALERT_COOLDOWN = 2 * 60 * 60 * 1000; // 2 hours
 const alertedSessions = new Map(); // sessionId -> last alert ts
 
 async function sendDiscordAlert(channelId, message) {
